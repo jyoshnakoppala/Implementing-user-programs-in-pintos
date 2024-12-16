@@ -183,6 +183,8 @@ thread_create (const char *name, int priority,
   init_thread (t, name, priority);
   tid = t->tid = allocate_tid ();
 
+  t->parent_tid = thread_current ()->tid;
+
   /* Stack frame for kernel_thread(). */
   kf = alloc_frame (t, sizeof *kf);
   kf->eip = NULL;
@@ -462,6 +464,12 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  #ifdef USERPROG
+   t->load_flag = 0;
+   lock_init (&t->child_process_lock);
+   cond_init (&t->child_process_cond);
+   list_init (&t->child_processes);
+  #endif
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -582,3 +590,18 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+struct thread *thread_get_by_id(tid_t id) {
+    ASSERT(id != TID_ERROR);
+
+    for (struct list_elem *e = list_prev(list_tail(&all_list));
+         e != list_head(&all_list);
+         e = list_prev(e)) 
+    {
+        struct thread *t = list_entry(e, struct thread, allelem);
+        if (t->tid == id && t->status != THREAD_DYING) {
+            return t;
+        }
+    }
+
+    return NULL;
+}

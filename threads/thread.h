@@ -4,6 +4,8 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
+#include "filesys/file.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -24,6 +26,18 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+struct child_info {
+  tid_t child_tid;             // Child thread ID
+  bool exit_called;            // Whether exit was called
+  bool waited;                 // Whether it has been waited on
+  int exit_status;             // Exit status of the child
+  struct list_elem elem;       // List element for child info
+};
+
+/* A struct to track information about a thread's children,
+ * including exit status, termination by kernel, and
+ * whether process_wait was called successfully.
+ */
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -94,8 +108,17 @@ struct thread
     struct list_elem elem;              /* List element. */
 
 #ifdef USERPROG
-    /* Owned by userprog/process.c. */
-    uint32_t *pagedir;                  /* Page directory. */
+    uint32_t *pagedir;           /* Page directory. */
+    tid_t parent_tid;             /* Parent thread ID. */
+ 
+
+    int load_flag;
+    
+    struct lock child_process_lock;
+    struct condition child_process_cond;
+ 
+    struct list child_processes;
+    struct file *executable;
 #endif
 
     /* Owned by thread.c. */
@@ -133,9 +156,13 @@ void thread_foreach (thread_action_func *, void *);
 int thread_get_priority (void);
 void thread_set_priority (int);
 
+struct thread * thread_get_by_id (tid_t);
+
 int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+bool validate(const void *);
 
 #endif /* threads/thread.h */
